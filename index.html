@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>CO₂ Widget Logic - MultiversX & Solana</title>
   <style>
-    body { margin:0; padding:0; background:transparent; font-family:'Segoe UI',sans-serif; color:white; }
+    body { margin:0; padding:0; background:transparent; font-family:'Segoe UI',sans-serif; color:white }
     .widget {
       background: rgba(24,24,32,0.9);
       backdrop-filter: blur(10px);
@@ -65,21 +65,9 @@
     <div id="loading" style="display:none; margin:10px 0;">🔄 Realm² Scanning...</div>
 
     <div class="info-cards">
-      <div class="card">
-        <div class="card-icon">🔗</div>
-        <div class="card-title">Blockchain</div>
-        <div id="valBlockchain" class="card-value" style="color:#ff7ed4;">? g</div>
-      </div>
-      <div class="card">
-        <div class="card-icon">💻</div>
-        <div class="card-title">Website</div>
-        <div id="valWebsite" class="card-value" style="color:#6cf;">? g</div>
-      </div>
-      <div class="card">
-        <div class="card-icon">📱</div>
-        <div class="card-title">Social media</div>
-        <div id="valSocial" class="card-value" style="color:#62fbbf;">? g</div>
-      </div>
+      <div class="card"><div class="card-icon">🔗</div><div class="card-title">Blockchain</div><div id="valBlockchain" class="card-value" style="color:#ff7ed4;">? g</div></div>
+      <div class="card"><div class="card-icon">💻</div><div class="card-title">Website</div><div id="valWebsite" class="card-value" style="color:#6cf;">? g</div></div>
+      <div class="card"><div class="card-icon">📱</div><div class="card-title">Social media</div><div id="valSocial" class="card-value" style="color:#62fbbf;">? g</div></div>
     </div>
 
     <div class="total-label">Total CO₂ Emissions</div>
@@ -92,33 +80,19 @@
   </div>
 
   <script>
-    // Récupère le nombre de transactions pour un Token-ID via GraphQL
+    // 1) Récupère le nombre de tx pour un Token-ID via REST
     async function fetchTokenTxCount(tokenId) {
-      const query = {
-        query: `
-          query($id:String!) {
-            token(identifier:$id) {
-              transactionsCount
-            }
-          }
-        `,
-        variables: { id: tokenId }
-      };
       try {
-        const res  = await fetch("https://graphql-api.multiversx.com/graphql", {
-          method: "POST",
-          headers: { "Content-Type":"application/json" },
-          body: JSON.stringify(query)
-        });
-        const json = await res.json();
-        return json.data?.token?.transactionsCount || 0;
+        const res = await fetch(`https://api.multiversx.com/tokens?identifier=${tokenId}`);
+        const arr = await res.json();
+        return arr[0]?.numTransfers || 0;   // champ numTransfers contient le total de tx :contentReference[oaicite:2]{index=2}
       } catch (err) {
-        console.error("GraphQL token fetch error", err);
+        console.error("Token REST fetch error", err);
         return 0;
       }
     }
 
-    // Récupère le nombre de transactions pour une adresse (avec txCount)
+    // 2) Récupère le nombre de tx pour une adresse (avec txCount)
     async function fetchAccountTxCount(addr) {
       try {
         const res  = await fetch(`https://api.multiversx.com/accounts/${addr}?withTxCount=true`);
@@ -130,10 +104,10 @@
       }
     }
 
-    // Fonction principale
+    // 3) Analyse et affiche
     async function analyzeContract() {
       const raw = document.getElementById("contractInput").value
-        .replace(/[^\x21-\x7E]/g,"")  // enlève caractères invisibles
+        .replace(/[^\x21-\x7E]/g,"")
         .trim();
 
       const isAddress = /^erd1[0-9a-z]{58}$/i.test(raw);
@@ -145,21 +119,17 @@
       }
 
       document.getElementById("loading").style.display = "block";
-      ["valBlockchain","valWebsite","valSocial"].forEach(id => {
-        document.getElementById(id).innerText = "...";
-      });
+      ["valBlockchain","valWebsite","valSocial"].forEach(id => document.getElementById(id).innerText = "...");
       document.getElementById("totalCO2").innerText = "...";
       document.getElementById("txCountDisplay").innerText = "";
 
-      // Récupération du txCount
       const txCount = isTokenId
         ? await fetchTokenTxCount(raw)
         : await fetchAccountTxCount(raw);
 
-      const co2PerTx = 0.00032;  // grammes par transaction
-      const grams = Math.round(txCount * co2PerTx);
+      const co2PerTx = 0.00032;  
+      const grams    = Math.round(txCount * co2PerTx);
 
-      // Affichage des résultats
       ["valBlockchain","valWebsite","valSocial"].forEach(id => {
         document.getElementById(id).innerText = `${grams} g`;
       });
