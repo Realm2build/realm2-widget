@@ -2,78 +2,118 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MultiversX Token Tx Count</title>
+  <title>MultiversX CO₂ Widget</title>
   <style>
-    body {
-      font-family: sans-serif;
-      background: #12121c;
-      color: #eee;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 2rem;
+    body { margin:0; padding:0; background:#12121c; color:white; font-family:sans-serif; }
+    .widget {
+      max-width:420px; margin:40px auto; padding:30px 20px;
+      background:rgba(24,24,32,0.9); border-radius:24px;
+      backdrop-filter:blur(10px); box-shadow:0 0 30px rgba(0,0,0,0.4);
+      text-align:center;
     }
-    input, button {
-      font-size: 1rem;
-      padding: 0.5rem;
+    .widget input {
+      width:100%; padding:12px; margin-bottom:20px;
+      border:none; border-radius:12px; background:#12121c; color:white;
+      font-size:1em;
     }
-    input { width: 240px; margin-right: 0.5rem; }
-    #result { margin-top: 1rem; }
+    .widget button {
+      width:100%; padding:12px; margin-bottom:12px;
+      border:none; border-radius:14px; font-weight:bold; font-size:1em;
+      cursor:pointer;
+      background:linear-gradient(to right,#e664e8,#00ffe7); color:black;
+    }
+    .info-cards { display:flex; gap:12px; justify-content:center; margin-bottom:30px; }
+    .card {
+      flex:1; max-width:100px; background:linear-gradient(to bottom,#30243e,#1d1c28);
+      border-radius:16px; padding:12px 8px; text-align:center;
+    }
+    .card-icon { font-size:22px; margin-bottom:6px; }
+    .card-title { font-size:.85em; color:#ccc; margin-bottom:4px; }
+    .card-value { font-size:1em; font-weight:bold; }
+    .total-label { font-size:.9em; color:#aaa; margin-bottom:6px; }
+    .total-value { font-size:1.8em; font-weight:bold; margin-bottom:12px; }
+    .tx-count { font-size:.9em; color:#bbb; margin-bottom:24px; }
+    .note { font-size:.75em; color:#999; }
   </style>
 </head>
 <body>
-  <h1>MultiversX Token Tx Count</h1>
-  <div>
-    <input id="tokenId" placeholder="e.g. RIDE-7d18e9">
-    <button id="fetchBtn">Get Tx Count</button>
+  <div class="widget">
+    <h3>Web3 Project Address</h3>
+    <input id="tokenInput" placeholder="Enter Token ID (e.g. RIDE-7d18e9)" />
+    <button id="btn">🔍 Submit</button>
+    <div id="loading" style="display:none;">🔄 Scanning…</div>
+
+    <div class="info-cards">
+      <div class="card">
+        <div class="card-icon">🔗</div>
+        <div class="card-title">Blockchain</div>
+        <div id="val" class="card-value" style="color:#ff7ed4;">? g</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💻</div>
+        <div class="card-title">Website</div>
+        <div class="card-value" style="color:#6cf;">? g</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📱</div>
+        <div class="card-title">Social media</div>
+        <div class="card-value" style="color:#62fbbf;">? g</div>
+      </div>
+    </div>
+
+    <div class="total-label">Total CO₂ Emissions</div>
+    <div id="total" class="total-value">? g</div>
+    <div id="txCount" class="tx-count"></div>
+
+    <div class="note">This estimation only takes into account the smart contract’s transactions</div>
   </div>
-  <div id="result"></div>
 
   <script>
-    async function fetchTxCount(tokenId) {
-      const payload = {
-        query: `
-          query($id:String!) {
-            token(identifier:$id) {
-              transactionsCount
-            }
-          }
-        `,
-        variables: { id: tokenId }
-      };
-      const res = await fetch(
-        "https://graphql-api.multiversx.com/graphql", // <— notez le "graphql-api"
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        }
-      );
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const { data, errors } = await res.json();
-      if (errors) throw new Error(errors.map(e => e.message).join(", "));
-      return data.token.transactionsCount;
+    async function getTokenInfo(id) {
+      const res = await fetch(`https://api.multiversx.com/tokens?identifier=${id}`);
+      const arr = await res.json();
+      return arr[0] || null;
     }
 
-    document.getElementById("fetchBtn").onclick = async () => {
-      const id = document.getElementById("tokenId").value.trim();
-      const out = document.getElementById("result");
-      if (!id) {
-        out.textContent = "⚠️ Please enter a Token ID.";
-        return;
-      }
-      out.textContent = "⏳ Loading…";
+    async function getAccountTxCount(addr) {
+      const res = await fetch(`https://api.multiversx.com/accounts/${addr}?withTxCount=true`);
+      const j   = await res.json();
+      return j.data?.txCount ?? 0;
+    }
+
+    document.getElementById('btn').onclick = async () => {
+      const id = document.getElementById('tokenInput').value.trim();
+      const load = document.getElementById('loading');
+      const outVal = document.getElementById('val');
+      const outTotal = document.getElementById('total');
+      const outTx = document.getElementById('txCount');
+
+      if (!id) { alert('Please enter a Token ID'); return; }
+      load.style.display = 'block';
+      outVal.textContent = '...';
+      outTotal.textContent = '...';
+      outTx.textContent = '';
+
       try {
-        const count = await fetchTxCount(id);
-        out.innerHTML = 
-          count != null
-            ? `✅ <strong>${id}</strong> has <strong>${count.toLocaleString()}</strong> transactions.`
-            : `❌ Token "${id}" not found.`;
+        const info = await getTokenInfo(id);
+        if (!info) throw new Error('Token not found');
+        const contract = info.owner;
+        const txCount  = await getAccountTxCount(contract);
+
+        const grams = Math.round(txCount * 0.00032);
+        outVal.textContent   = grams + ' g';
+        outTotal.textContent = grams + ' g';
+        outTx.textContent    = `(based on ${txCount.toLocaleString()} tx)`;
       } catch (err) {
         console.error(err);
-        out.textContent = `❌ Error: ${err.message}`;
+        outVal.textContent = '? g';
+        outTotal.textContent = '? g';
+        outTx.textContent = '❌ ' + err.message;
+      } finally {
+        load.style.display = 'none';
       }
     };
   </script>
 </body>
 </html>
+
