@@ -1,56 +1,59 @@
-// widget.js
-async function fetchTokenTxCount(tokenId) {
-  try {
-    const res = await fetch(`https://api.multiversx.com/tokens?identifier=${tokenId}`);
-    const arr = await res.json();
-    return arr[0]?.numTransfers || 0;
-  } catch {
-    return 0;
-  }
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MultiversX Token Tx Count</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; background: #12121c; color: #eee; }
+    input, button { font-size: 1rem; padding: 0.5rem; }
+    input { width: 250px; margin-right: 0.5rem; }
+    button { cursor: pointer; }
+    #result { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>MultiversX Token Tx Count</h1>
+  <input id="tokenId" placeholder="e.g. RIDE-7d18e9" />
+  <button id="fetchBtn">Get Tx Count</button>
+  <div id="result"></div>
 
-async function fetchAccountTxCount(addr) {
-  try {
-    const res  = await fetch(`https://api.multiversx.com/accounts/${addr}?withTxCount=true`);
-    const json = await res.json();
-    return json.data?.txCount || 0;
-  } catch {
-    return 0;
-  }
-}
+  <script>
+    async function fetchTxCount(id) {
+      const payload = {
+        query: `
+          query TokenTx($id:String!) {
+            token(identifier:$id) {
+              transactionsCount
+            }
+          }
+        `,
+        variables: { id }
+      };
+      const res = await fetch("https://explorer.multiversx.com/graphql", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { data, errors } = await res.json();
+      if (errors) throw new Error(errors.map(e => e.message).join(", "));
+      return data.token.transactionsCount;
+    }
 
-async function analyzeContract() {
-  const raw = document.getElementById("contractInput").value
-    .replace(/[^\x21-\x7E]/g,"")
-    .trim();
-
-  const isTokenId = /^[A-Z0-9]+-[a-z0-9]+$/i.test(raw);
-  const isAddress = /^erd1[0-9a-z]{58}$/i.test(raw);
-
-  if (!isTokenId && !isAddress) {
-    alert("Invalid address or Token-ID format.");
-    return;
-  }
-
-  document.getElementById("loading").style.display = "block";
-  ["valBlockchain","valWebsite","valSocial"].forEach(id=>document.getElementById(id).innerText="...");
-  document.getElementById("totalCO2").innerText="...";
-  document.getElementById("txCountDisplay").innerText="";
-
-  const txCount = isTokenId
-    ? await fetchTokenTxCount(raw)
-    : await fetchAccountTxCount(raw);
-
-  const grams = Math.round(txCount * 0.00032);
-
-  document.getElementById("valBlockchain").innerText = `${grams} g`;
-  document.getElementById("totalCO2").innerText     = `${grams} g`;
-  document.getElementById("txCountDisplay").innerText = `(based on ${txCount.toLocaleString()} tx)`;
-  document.getElementById("loading").style.display = "none";
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("btnSubmit")
-          .addEventListener("click", analyzeContract);
-});
+    document.getElementById("fetchBtn").onclick = async () => {
+      const id = document.getElementById("tokenId").value.trim();
+      const out = document.getElementById("result");
+      if (!id) return void (out.textContent = "⚠️ Please enter a Token ID.");
+      out.textContent = "⏳ Loading…";
+      try {
+        const count = await fetchTxCount(id);
+        out.innerHTML = `✅ <strong>${id}</strong> has <strong>${count.toLocaleString()}</strong> transactions.`;
+      } catch (err) {
+        console.error(err);
+        out.textContent = `❌ Error: ${err.message}`;
+      }
+    };
+  </script>
+</body>
+</html>
 
