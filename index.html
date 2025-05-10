@@ -65,9 +65,21 @@
     <div id="loading" style="display:none; margin:10px 0;">🔄 Realm² Scanning...</div>
 
     <div class="info-cards">
-      <div class="card"><div class="card-icon">🔗</div><div class="card-title">Blockchain</div><div id="valBlockchain" class="card-value" style="color:#ff7ed4;">? g</div></div>
-      <div class="card"><div class="card-icon">💻</div><div class="card-title">Website   </div><div id="valWebsite"    class="card-value" style="color:#6cf;">? g</div></div>
-      <div class="card"><div class="card-icon">📱</div><div class="card-title">Social media</div><div id="valSocial"     class="card-value" style="color:#62fbbf;">? g</div></div>
+      <div class="card">
+        <div class="card-icon">🔗</div>
+        <div class="card-title">Blockchain</div>
+        <div id="valBlockchain" class="card-value" style="color:#ff7ed4;">? g</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💻</div>
+        <div class="card-title">Website</div>
+        <div id="valWebsite" class="card-value" style="color:#6cf;">? g</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📱</div>
+        <div class="card-title">Social media</div>
+        <div id="valSocial" class="card-value" style="color:#62fbbf;">? g</div>
+      </div>
     </div>
 
     <div class="total-label">Total CO₂ Emissions</div>
@@ -80,7 +92,7 @@
   </div>
 
   <script>
-    // 1) Récupère le nombre de tx pour un Token-ID via GraphQL
+    // Récupère le nombre de transactions pour un Token-ID via GraphQL
     async function fetchTokenTxCount(tokenId) {
       const query = {
         query: `
@@ -106,7 +118,7 @@
       }
     }
 
-    // 2) Récupère le nombre de tx pour une adresse en ajoutant ?withTxCount=true :contentReference[oaicite:1]{index=1}
+    // Récupère le nombre de transactions pour une adresse (avec txCount)
     async function fetchAccountTxCount(addr) {
       try {
         const res  = await fetch(`https://api.multiversx.com/accounts/${addr}?withTxCount=true`);
@@ -118,10 +130,12 @@
       }
     }
 
+    // Fonction principale
     async function analyzeContract() {
       const raw = document.getElementById("contractInput").value
         .replace(/[^\x21-\x7E]/g,"")  // enlève caractères invisibles
         .trim();
+
       const isAddress = /^erd1[0-9a-z]{58}$/i.test(raw);
       const isTokenId = /^[A-Z0-9]+-[a-z0-9]+$/i.test(raw);
 
@@ -131,7 +145,9 @@
       }
 
       document.getElementById("loading").style.display = "block";
-      ["valBlockchain","valWebsite","valSocial"].forEach(id => document.getElementById(id).innerText = "...");
+      ["valBlockchain","valWebsite","valSocial"].forEach(id => {
+        document.getElementById(id).innerText = "...";
+      });
       document.getElementById("totalCO2").innerText = "...";
       document.getElementById("txCountDisplay").innerText = "";
 
@@ -140,10 +156,10 @@
         ? await fetchTokenTxCount(raw)
         : await fetchAccountTxCount(raw);
 
-      const co2PerTx = 0.00032;       // g par transaction
-      const grams     = Math.round(txCount * co2PerTx);
+      const co2PerTx = 0.00032;  // grammes par transaction
+      const grams = Math.round(txCount * co2PerTx);
 
-      // Affichage
+      // Affichage des résultats
       ["valBlockchain","valWebsite","valSocial"].forEach(id => {
         document.getElementById(id).innerText = `${grams} g`;
       });
